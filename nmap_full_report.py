@@ -7,7 +7,7 @@ from datetime import datetime
 
 def usage():
     print("Usage: python3 nmap_full_report.py <target_ip_or_hostname>")
-    print("Example: python3 nmap_full_report.py example.com")
+    print("Example: python3 nmap_full_report.py testphp.vulnweb.com")
     sys.exit(1)
 
 def create_report_directory():
@@ -26,51 +26,37 @@ def generate_report(target, scan_data, report_dir):
         report_file.write(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
         
         # Host Information
-        if 'host' in scan_data:
-            host = scan_data['host']
+        if 'status' in scan_data:
             report_file.write("=== Host Information ===\n")
-            report_file.write(f"Status: {host['status']['state']}\n")
-            if 'addresses' in host:
-                for addr_type, addr in host['addresses'].items():
+            report_file.write(f"Status: {scan_data['status']['state']}\n")
+            if 'addresses' in scan_data:
+                for addr_type, addr in scan_data['addresses'].items():
                     report_file.write(f"{addr_type.capitalize()}: {addr}\n")
-            if 'hostnames' in host and host['hostnames']:
+            if 'hostnames' in scan_data and scan_data['hostnames']:
                 report_file.write("Hostnames:\n")
-                for hostname in host['hostnames']:
+                for hostname in scan_data['hostnames']:
                     report_file.write(f" - {hostname['name']} ({hostname['type']})\n")
-            if 'osmatch' in host and host['osmatch']:
+            if 'osmatch' in scan_data and scan_data['osmatch']:
                 report_file.write("\nOS Detection:\n")
-                for os in host['osmatch']:
+                for os in scan_data['osmatch']:
                     report_file.write(f"Name: {os['name']}, Accuracy: {os['accuracy']}%\n")
             report_file.write("\n")
         
         # Port Information
-        if 'tcp' in scan_data:
-            report_file.write("=== Open TCP Ports ===\n")
-            for port, port_data in scan_data['tcp'].items():
-                report_file.write(f"Port: {port}/tcp\n")
-                report_file.write(f"State: {port_data['state']}\n")
-                report_file.write(f"Service: {port_data['name']}\n")
-                report_file.write(f"Version: {port_data.get('version', 'N/A')}\n")
-                # Script Outputs
-                if 'script' in port_data and port_data['script']:
-                    report_file.write("Scripts Output:\n")
-                    for script, output in port_data['script'].items():
-                        report_file.write(f"  [{script}]: {output}\n")
-                report_file.write("\n")
-        
-        if 'udp' in scan_data:
-            report_file.write("=== Open UDP Ports ===\n")
-            for port, port_data in scan_data['udp'].items():
-                report_file.write(f"Port: {port}/udp\n")
-                report_file.write(f"State: {port_data['state']}\n")
-                report_file.write(f"Service: {port_data['name']}\n")
-                report_file.write(f"Version: {port_data.get('version', 'N/A')}\n")
-                # Script Outputs
-                if 'script' in port_data and port_data['script']:
-                    report_file.write("Scripts Output:\n")
-                    for script, output in port_data['script'].items():
-                        report_file.write(f"  [{script}]: {output}\n")
-                report_file.write("\n")
+        for protocol in ['tcp', 'udp']:
+            if protocol in scan_data:
+                report_file.write(f"=== Open {protocol.upper()} Ports ===\n")
+                for port, port_data in scan_data[protocol].items():
+                    report_file.write(f"Port: {port}/{protocol}\n")
+                    report_file.write(f"State: {port_data['state']}\n")
+                    report_file.write(f"Service: {port_data['name']}\n")
+                    report_file.write(f"Version: {port_data.get('version', 'N/A')}\n")
+                    # Script Outputs
+                    if 'script' in port_data and port_data['script']:
+                        report_file.write("Scripts Output:\n")
+                        for script, output in port_data['script'].items():
+                            report_file.write(f"  [{script}]: {output}\n")
+                    report_file.write("\n")
         
         # Host Scripts (if any)
         if 'hostscript' in scan_data:
@@ -92,11 +78,9 @@ def main():
     nm = nmap.PortScanner()
     
     # Define common ports (both standard and database-related)
-    # You can modify the port list as needed
     ports = '21,22,23,25,53,80,110,135,139,143,443,445,3306,3389,5432,5900,6379,8080,8443'
     
     # Define NSE scripts for database detection and other info
-    # These scripts can be expanded based on requirements
     scripts = [
         'mysql-info',
         'pgsql-info',
@@ -121,12 +105,18 @@ def main():
         print(f"An error occurred while scanning: {e}")
         sys.exit(1)
     
+    # Debugging: Print all hosts found
+    print(f"All hosts found: {nm.all_hosts()}")
+    
     # Check if target was scanned
     if target not in nm.all_hosts():
         print(f"No information available for target: {target}")
         sys.exit(1)
     
     scan_data = nm[target]
+    
+    # Debugging: Print scan data keys
+    print(f"Scan data keys for {target}: {scan_data.keys()}")
     
     # Create report directory
     report_dir = create_report_directory()
